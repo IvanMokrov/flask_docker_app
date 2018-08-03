@@ -134,9 +134,45 @@ switched to db pets
 >
 </pre>
 
-# Группировка данных
+## Группировка данных
 
 Для группировки данных существует модификатор group - аналог GROUP BY в стандарте SQL. Его синтаксис:
 <pre>
 { $group: { _id: <expression>, <field1>: { <accumulator1> : <expression1> }, ... } }
+</pre>
+
+Этот модификатор оборачивается в конструкцию *db.dogs.aggregate([])*
+
+Применим к нашей игрушечной таблице
+
+<pre>
+/usr/bin/mongo $APP_MONGO_HOST:$APP_MONGO_PORT/pets
+> db.dogs.aggregate([{$group: {_id: "$status"}}])
+</pre>
+
+Это минимально допустимая конструкция, которая не делает ничего полезного, т.к. мы не указали агрегирующую функцию.
+Усложним пример, добавив простой счётчик
+<pre>
+> db.dogs.aggregate([{$group: {_id: "$status", tag_count: { $sum: 1 }}}])
+{ "_id" : "success", "tag_count" : 200 }
+</pre>
+
+## Модификация полей.
+
+Допустим, для предыдущего примера мы хотим посчитать не просто количество документов, а сумму длинн поля $message.
+
+Для этой задачи потребуется добавить к коллеции новое поле - message_len.
+
+Строки в Mongo - объекты Javascript, то есть у них есть атрибут length. Таким образом нам нужно применить функцию length каждому полю message всех документов коллекции.
+Для этого мы используем метод курсора forEach и вызовем метод update для каждого документа:
+
+<pre>
+db.dogs.find().forEach(function(doc){db.dogs.update({_id:doc._id}, {$set: {message_len: doc.message.length}})})
+</pre>
+
+Теперь можно посчитать ещё один агрегат - сумму длин строк:
+
+<pre>
+db.dogs.aggregate([{$group: {_id: "$status", tag_count: { $sum: 1 }, descr_len: {$sum: "$message_len"}}}])
+{ "_id" : "success", "tag_count" : 200, "descr_len" : 11845 }
 </pre>
